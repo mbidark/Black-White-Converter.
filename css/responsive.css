@@ -45,6 +45,7 @@
   .drop-title { font-size: 14px; }
   .preview img { height: 140px; }
   .status-pill { display: none; }
+  .command-shortcut-hint { display: none; }
   .settings-row { flex-direction: column; align-items: flex-start; gap: 8px; }
   .select, .input { width: 100%; }
   .editor-presets { grid-template-columns: 1fr; }

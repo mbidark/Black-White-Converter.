@@ -12,6 +12,8 @@
   };
   const listeners = [];
   let bulkZipBusy = false;
+  const galleryEmpty = document.getElementById('galleryEmpty');
+  const homeEmpty = document.getElementById('empty');
 
   const getObjectUrl = (item) => {
     if (!item._previewUrl) item._previewUrl = URL.createObjectURL(item.thumbBlob || item.blob);
@@ -113,11 +115,10 @@
   function render() {
     applyFiltersAndSort();
     const el = document.getElementById('galleryFull');
-    const emptyEl = document.getElementById('galleryEmpty');
     el.innerHTML = '';
     if (state.filtered.length === 0) {
-      el.appendChild(emptyEl);
-      emptyEl.hidden = false;
+      el.appendChild(galleryEmpty);
+      galleryEmpty.hidden = false;
     } else {
       const frag = document.createDocumentFragment();
       state.filtered.forEach((it) => frag.appendChild(buildCard(it)));
@@ -125,17 +126,16 @@
     }
     // Also render main gallery (active/invert view) with full unfiltered list
     const main = document.getElementById('gallery');
-    const mainEmpty = document.getElementById('empty');
     main.innerHTML = '';
     if (state.items.length === 0) {
-      main.appendChild(mainEmpty);
-      mainEmpty.hidden = false;
+      main.appendChild(homeEmpty);
+      homeEmpty.hidden = false;
     } else {
       const frag = document.createDocumentFragment();
       state.items.forEach((it) => frag.appendChild(buildCard(it)));
       main.appendChild(frag);
     }
-    mainEmpty.hidden = state.items.length > 0;
+    homeEmpty.hidden = state.items.length > 0;
 
     document.getElementById('gallery').classList.toggle('list-layout', state.layout === 'list');
     document.getElementById('galleryFull').classList.toggle('list-layout', state.layout === 'list');

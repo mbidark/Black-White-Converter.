@@ -15,8 +15,10 @@
 
 /* SELECT / INPUT */
 .select, .input { padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--text); font-size: 12px; font-weight: 550; font-family: var(--font); cursor: pointer; transition: border-color var(--transition); min-width: 120px; }
+.select { appearance: none; min-height: 38px; padding-right: 36px; border-color: var(--line); background-color: var(--surface); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237a7a7e' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; background-size: 14px; box-shadow: var(--shadow-sm); }
 .select:hover, .input:hover { border-color: var(--line-strong); }
 .select:focus, .input:focus { outline: none; border-color: var(--line-strong); box-shadow: 0 0 0 3px var(--accent-soft); }
+.select option { background: var(--bg-elevated); color: var(--text); }
 .input { width: 90px; text-align: center; }
 
 /* BADGE */

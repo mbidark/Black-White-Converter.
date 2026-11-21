@@ -82,6 +82,49 @@
     return monochromeMainThread(file, maxSizeMB, invert);
   }
 
+  async function* convertPdfToMonochrome(file, maxSizeMB, invert = false, maxPages = 100, onProgress = () => {}) {
+    if (file.size > maxSizeMB * 1024 * 1024) throw new Error(`Exceeds ${maxSizeMB} MB.`);
+    if (!window.pdfjsLib && window.pdfjsLibReady) await window.pdfjsLibReady;
+    if (!window.pdfjsLib) throw new Error('PDF support is unavailable because the PDF renderer could not be loaded.');
+
+    const loadingTask = window.pdfjsLib.getDocument({ data: await file.arrayBuffer() });
+    const pdf = await loadingTask.promise;
+    try {
+      if (pdf.numPages > maxPages) throw new Error(`PDF has ${pdf.numPages} pages; the limit is ${maxPages} pages per file. Increase the limit in Settings to continue.`);
+      for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+        const page = await pdf.getPage(pageNumber);
+        const canvas = document.createElement('canvas');
+        try {
+          const viewport = page.getViewport({ scale: 1.5 });
+          const width = Math.ceil(viewport.width);
+          const height = Math.ceil(viewport.height);
+          if (!width || !height || width * height > 20_000_000) {
+            throw new Error(`PDF page ${pageNumber} is too large to safely process (maximum 20 megapixels per page).`);
+          }
+          canvas.width = width;
+          canvas.height = height;
+          onProgress({ pageNumber, totalPages: pdf.numPages });
+          const context = canvas.getContext('2d');
+          if (!context) throw new Error('Canvas is not supported by this browser.');
+          context.fillStyle = '#fff';
+          context.fillRect(0, 0, canvas.width, canvas.height);
+          await page.render({ canvasContext: context, viewport }).promise;
+          const pageBlob = await new Promise((resolve, reject) => {
+            canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error(`Could not render PDF page ${pageNumber}.`)), 'image/png');
+          });
+          const result = await convertToMonochrome(pageBlob, maxSizeMB, invert);
+          yield { ...result, pageNumber };
+        } finally {
+          page.cleanup();
+          canvas.width = 0;
+          canvas.height = 0;
+        }
+      }
+    } finally {
+      await loadingTask.destroy();
+    }
+  }
+
   async function applyFiltersToBlob(sourceBlob, filters) {
     const w = getWorker();
     if (w) {
@@ -173,5 +216,5 @@
     return { blob, width: out.width, height: out.height };
   }
 
-  window.MbiProcessor = { convertToMonochrome, applyFiltersToBlob, generateThumbnail, transformBlob, buildFilterString };
+  window.MbiProcessor = { convertToMonochrome, convertPdfToMonochrome, applyFiltersToBlob, generateThumbnail, transformBlob, buildFilterString };
 })();

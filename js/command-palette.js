@@ -84,6 +84,7 @@
 
   function bind() {
     document.getElementById('commandBtn').addEventListener('click', open);
+    document.getElementById('commandModifierHint').textContent = /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl';
     document.getElementById('commandBackdrop').addEventListener('click', close);
     document.getElementById('commandInput').addEventListener('input', (e) => filter(e.target.value));
     const list = document.getElementById('commandList');

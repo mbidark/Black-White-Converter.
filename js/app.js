@@ -4,7 +4,7 @@
   const state = {
     nextId: 1,
     busy: false,
-    settings: { maxFiles: 20, maxSizeMB: 25, theme: 'auto', layout: 'grid', thumbSize: 300, invertOutput: false },
+    settings: { maxFiles: 20, maxPdfPages: 100, maxSizeMB: 25, theme: 'auto', layout: 'grid', thumbSize: 300, invertOutput: false },
     objectUrls: new Map(),
   };
 
@@ -16,6 +16,7 @@
       if (saved) Object.assign(state.settings, JSON.parse(saved));
     } catch { /* ignore */ }
     el('maxFilesInput').value = state.settings.maxFiles;
+    el('maxPdfPagesInput').value = state.settings.maxPdfPages;
     el('maxSizeInput').value = state.settings.maxSizeMB;
     el('themeSelect').value = state.settings.theme;
     el('layoutSelect').value = state.settings.layout;
@@ -32,6 +33,7 @@
 
   function updateLimitHints() {
     el('dropLimitHint').textContent = `batch of ${state.settings.maxFiles}`;
+    el('dropPageLimitHint').textContent = `${state.settings.maxPdfPages} PDF pages per file`;
     el('dropSizeHint').textContent = `${state.settings.maxSizeMB} MB`;
   }
 
@@ -53,6 +55,14 @@
       v = U.clamp(v, 1, 200);
       e.target.value = v;
       state.settings.maxFiles = v;
+      saveSettings();
+      updateLimitHints();
+    });
+    el('maxPdfPagesInput').addEventListener('change', (e) => {
+      let v = parseInt(e.target.value, 10) || 100;
+      v = U.clamp(v, 1, 500);
+      e.target.value = v;
+      state.settings.maxPdfPages = v;
       saveSettings();
       updateLimitHints();
     });
@@ -102,8 +112,10 @@
 
   async function handleFiles(fileList) {
     if (state.busy) return;
-    const files = Array.from(fileList || []).filter((f) => f.type.startsWith('image/'));
-    if (files.length === 0) { window.MbiUI.toast('No valid images selected.', true); return; }
+    const selectedFiles = Array.from(fileList || []);
+    const files = selectedFiles.filter((file) => file.type.startsWith('image/') || file.type === 'application/pdf' || /\.pdf$/i.test(file.name));
+    if (selectedFiles.length > files.length) window.MbiUI.toast(`${selectedFiles.length - files.length} unsupported file(s) skipped.`, true);
+    if (files.length === 0) { window.MbiUI.toast('Choose supported image files or PDFs.', true); return; }
 
     const queue = files.slice(0, state.settings.maxFiles);
     if (files.length > queue.length) window.MbiUI.toast(`Batch limited to ${state.settings.maxFiles}.`, true);
@@ -117,38 +129,55 @@
     window.MbiUI.setPillStatus('busy', 'Processing…');
     window.MbiUI.showLoading('Creating black-and-white images…');
 
-    let done = 0, failed = 0;
+    let done = 0, failed = 0, processed = 0;
+    let lastError = '';
     const maxBytes = state.settings.maxSizeMB * 1024 * 1024;
     const invertOutput = !!state.settings.invertOutput;
 
-    for (const file of queue) {
+    for (const [fileIndex, file] of queue.entries()) {
       try {
         if (file.size > maxBytes) throw new Error(`Exceeds ${state.settings.maxSizeMB} MB.`);
         window.MbiUI.setStatus(`Processing ${file.name}…`);
-        const result = await window.MbiProcessor.convertToMonochrome(file, state.settings.maxSizeMB, invertOutput);
-        const base = U.safeBaseName(file.name);
-        const filename = U.uniqueName(base, window.MbiGallery.getItems().map((i) => i.filename));
-        const thumbRes = await window.MbiProcessor.generateThumbnail(result.blob, state.settings.thumbSize);
-        const record = {
-          id: state.nextId++,
-          originalName: file.name,
-          filename,
-          blob: result.blob,
-          thumbBlob: thumbRes.blob,
-          size: result.blob.size,
-          width: result.width,
-          height: result.height,
-          createdAt: Date.now(),
-        };
-        await window.MbiDB.putImage(record);
-        window.MbiGallery.addItem(record);
-        done++;
+        const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+        let pdfTotalPages = 0;
+        const results = isPdf
+          ? window.MbiProcessor.convertPdfToMonochrome(file, state.settings.maxSizeMB, invertOutput, state.settings.maxPdfPages, ({ pageNumber, totalPages }) => {
+            pdfTotalPages = totalPages;
+            window.MbiUI.setStatus(`Processing ${file.name} — page ${pageNumber} of ${totalPages}…`);
+            window.MbiUI.setProgress(((fileIndex + (pageNumber - 1) / totalPages) / queue.length) * 100);
+          })
+          : [await window.MbiProcessor.convertToMonochrome(file, state.settings.maxSizeMB, invertOutput)];
+        for await (const result of results) {
+          const pageSuffix = result.pageNumber ? `_page-${String(result.pageNumber).padStart(3, '0')}` : '';
+          const base = `${U.safeBaseName(file.name)}${pageSuffix}`;
+          const filename = U.uniqueName(base, window.MbiGallery.getItems().map((i) => i.filename));
+          const thumbRes = await window.MbiProcessor.generateThumbnail(result.blob, state.settings.thumbSize);
+          const record = {
+            id: state.nextId++,
+            originalName: result.pageNumber ? `${file.name} — page ${result.pageNumber}` : file.name,
+            filename,
+            blob: result.blob,
+            thumbBlob: thumbRes.blob,
+            size: result.blob.size,
+            width: result.width,
+            height: result.height,
+            createdAt: Date.now(),
+          };
+          await window.MbiDB.putImage(record);
+          window.MbiGallery.addItem(record);
+          done++;
+          if (result.pageNumber && pdfTotalPages) {
+            window.MbiUI.setProgress(((fileIndex + result.pageNumber / pdfTotalPages) / queue.length) * 100);
+          }
+        }
+        processed++;
       } catch (err) {
         console.error('Convert failed:', file.name, err);
+        lastError = err.message || String(err);
         failed++;
         window.MbiUI.setStatus(`Failed: ${file.name} — ${err.message}`);
       }
-      window.MbiUI.setProgress(((done + failed) / queue.length) * 100);
+      if (processed + failed) window.MbiUI.setProgress(((fileIndex + 1) / queue.length) * 100);
     }
 
     state.busy = false;
@@ -167,7 +196,8 @@
     } else {
       window.MbiUI.setPillStatus('error', 'Failed');
       window.MbiUI.setStatus('No images converted.');
-      window.MbiUI.toast('Conversion failed.', true);
+      window.MbiUI.setStatus(`No images converted.${lastError ? ` ${lastError}` : ''}`);
+      window.MbiUI.toast(lastError ? `Conversion failed: ${lastError}` : 'Conversion failed.', true);
       setTimeout(() => window.MbiUI.setPillStatus('ok', 'Ready'), 3000);
     }
   }
@@ -406,7 +436,7 @@
       }).catch(() => {});
     }
 
-    console.log('%c MBI Dark · Image Lab ', 'background:#111;color:#fff;font-weight:bold;padding:3px 8px;border-radius:4px;', 'v4.0.0');
+    console.log('%c MBI Dark · Image Lab ', 'background:#111;color:#fff;font-weight:bold;padding:3px 8px;border-radius:4px;', 'v4.3.0');
   }
 
   // Expose for other modules
