@@ -32,8 +32,6 @@
     <symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" stroke="currentColor" fill="none" stroke-width="2"/><path d="M21 21l-4.35-4.35" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/></symbol>
-    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
-    <symbol id="i-star-fill" viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" fill="currentColor"/></symbol>
     <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 4h16l-6 8v6l-4 2v-8L4 4z" stroke="currentColor" fill="none" stroke-width="2" stroke-linejoin="round"/></symbol>
     <symbol id="i-sliders" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6" stroke="currentColor" fill="none" stroke-width="2" stroke-linecap="round"/></symbol>
     <symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3" stroke="currentColor" fill="none" stroke-width="2"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5" stroke="currentColor" fill="none" stroke-width="2"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3" stroke="currentColor" fill="none" stroke-width="2"/></symbol>
@@ -116,8 +114,8 @@
         <div class="hero">
           <div class="hero-content">
             <div class="hero-eyebrow"><svg class="icon"><use href="#i-invert"/></svg>Image utility / 01</div>
-            <h1>Image Inverter<span class="accent-dot">.</span></h1>
-            <p>Turn images into inverted PNGs instantly. All processing is local — your files never leave this browser.</p>
+            <h1>Black &amp; White Converter<span class="accent-dot">.</span></h1>
+            <p>Convert images to monochrome PNGs with white backgrounds and dark details. Turn on color inversion for a black background and white details. All processing is local — your files never leave this browser.</p>
           </div>
           <div class="hero-decoration" aria-hidden="true">
             <div class="hero-ring ring-1"></div>
@@ -144,8 +142,16 @@
             </div>
           </div>
           <div class="actions">
+            <button class="btn" id="invertOutputBtn" type="button" aria-pressed="false" title="Output: white background, black details"><svg class="icon"><use href="#i-invert"/></svg><span id="invertOutputLabel">Invert colors: Off</span></button>
             <button class="btn" id="clearBtn" type="button" disabled><svg class="icon"><use href="#i-trash"/></svg> Clear all</button>
             <button class="btn primary" id="zipBtn" type="button" disabled><svg class="icon"><use href="#i-download"/></svg> Download ZIP</button>
+            <button class="btn" id="homeSelectModeBtn" type="button"><svg class="icon"><use href="#i-check"/></svg> Select</button>
+            <div class="bulk-actions" id="homeBulkActions" hidden>
+              <span class="bulk-count" id="homeBulkCount" aria-live="polite">0 selected</span>
+              <button class="btn small" id="homeBulkZipBtn" type="button"><svg class="icon"><use href="#i-download"/></svg> Selected ZIP</button>
+              <button class="btn small danger" id="homeBulkDelBtn" type="button"><svg class="icon"><use href="#i-trash"/></svg> Delete selected</button>
+              <button class="btn small ghost" id="homeBulkCancelBtn" type="button">Cancel</button>
+            </div>
           </div>
         </div>
 
@@ -181,17 +187,13 @@
               <option value="size-desc">Largest first</option>
               <option value="size-asc">Smallest first</option>
             </select>
-            <button class="btn ghost" id="favFilterBtn" type="button">
-              <svg class="icon"><use href="#i-star"/></svg> Favorites
-            </button>
           </div>
           <div class="gallery-toolbar-right">
             <button class="btn" id="selectModeBtn" type="button">
               <svg class="icon"><use href="#i-check"/></svg> Select
             </button>
             <div class="bulk-actions" id="bulkActions" hidden>
-              <span class="bulk-count" id="bulkCount">0 selected</span>
-              <button class="btn small" id="bulkFavBtn" type="button"><svg class="icon"><use href="#i-star"/></svg> Favorite</button>
+              <span class="bulk-count" id="bulkCount" aria-live="polite">0 selected</span>
               <button class="btn small" id="bulkZipBtn" type="button"><svg class="icon"><use href="#i-download"/></svg> ZIP</button>
               <button class="btn small danger" id="bulkDelBtn" type="button"><svg class="icon"><use href="#i-trash"/></svg> Delete</button>
               <button class="btn small ghost" id="bulkCancelBtn" type="button">Cancel</button>
@@ -253,6 +255,20 @@
             </div>
           </div>
 
+          <div class="settings-card" id="keyboardShortcuts">
+            <div class="settings-card-head"><svg class="icon"><use href="#i-command"/></svg><h3>Keyboard shortcuts</h3></div>
+            <p class="settings-desc" style="margin:0 0 12px">Use Ctrl on Windows/Linux or ⌘ on macOS.</p>
+            <div class="shortcut-list">
+              <div class="shortcut-row"><span>Open image picker</span><kbd>Ctrl/⌘ + O</kbd></div>
+              <div class="shortcut-row"><span>Download all images as ZIP</span><kbd>Ctrl/⌘ + S</kbd></div>
+              <div class="shortcut-row"><span>Open command palette</span><kbd>Ctrl/⌘ + K</kbd></div>
+              <div class="shortcut-row"><span>Undo / redo while editing</span><kbd>Ctrl/⌘ + Z / Shift + Z</kbd></div>
+              <div class="shortcut-row"><span>Show this shortcut panel</span><kbd>?</kbd></div>
+              <div class="shortcut-row"><span>Close dialog or preview</span><kbd>Esc</kbd></div>
+              <div class="shortcut-row"><span>Previous / next image in preview</span><kbd>← / →</kbd></div>
+            </div>
+          </div>
+
           <div class="settings-card">
             <div class="settings-card-head"><svg class="icon"><use href="#i-info"/></svg><h3>About</h3></div>
             <p class="settings-desc" style="margin:0 0 10px">MBI Dark Image Lab — a fully client-side image editor. Nothing leaves your device.</p>
@@ -271,7 +287,7 @@
       <button class="lightbox-close icon-btn" id="lightboxClose" aria-label="Close"><svg class="icon"><use href="#i-x"/></svg></button>
       <button class="lightbox-nav prev icon-btn" id="lightboxPrev" aria-label="Previous"><svg class="icon"><use href="#i-arrow-left"/></svg></button>
       <button class="lightbox-nav next icon-btn" id="lightboxNext" aria-label="Next"><svg class="icon"><use href="#i-arrow-right"/></svg></button>
-      <div class="lightbox-stage" id="lightboxStage">
+      <div class="lightbox-stage" id="lightboxStage" title="Scroll to zoom; drag to move the image">
         <img id="lightboxImg" alt="">
         <div class="lightbox-loading" id="lightboxLoading"><svg class="icon spin"><use href="#i-spinner"/></svg></div>
       </div>
@@ -280,7 +296,7 @@
         <div class="lightbox-actions">
           <button class="icon-btn" id="lightboxZoomOut" aria-label="Zoom out"><svg class="icon"><use href="#i-zoom-out"/></svg></button>
           <button class="icon-btn" id="lightboxZoomIn" aria-label="Zoom in"><svg class="icon"><use href="#i-zoom-in"/></svg></button>
-          <button class="icon-btn" id="lightboxFav" aria-label="Favorite"><svg class="icon" id="lightboxFavIcon"><use href="#i-star"/></svg></button>
+          <button class="btn small" id="lightboxInvert" type="button" aria-label="Invert image" title="Invert image"><svg class="icon"><use href="#i-invert"/></svg> Invert</button>
           <button class="icon-btn" id="lightboxDownload" aria-label="Download"><svg class="icon"><use href="#i-download"/></svg></button>
           <button class="icon-btn" id="lightboxEdit" aria-label="Edit"><svg class="icon"><use href="#i-edit"/></svg></button>
           <button class="icon-btn" id="lightboxDelete" aria-label="Delete"><svg class="icon"><use href="#i-trash"/></svg></button>
@@ -301,7 +317,7 @@
         <div class="editor-header-right">
           <button class="icon-btn" id="editorUndo" aria-label="Undo" title="Undo"><svg class="icon"><use href="#i-undo"/></svg></button>
           <button class="icon-btn" id="editorRedo" aria-label="Redo" title="Redo"><svg class="icon"><use href="#i-redo"/></svg></button>
-          <button class="btn primary" id="editorSave" type="button"><svg class="icon"><use href="#i-check"/></svg> Save as new</button>
+          <button class="btn primary" id="editorSave" type="button"><svg class="icon"><use href="#i-check"/></svg><span class="editor-save-label">Save as new</span></button>
         </div>
       </header>
       <div class="editor-body">
@@ -332,7 +348,7 @@
         <input type="text" id="commandInput" placeholder="Type a command…" autocomplete="off" spellcheck="false">
         <kbd>Esc</kbd>
       </div>
-      <div class="command-list" id="commandList"></div>
+      <div class="command-list" id="commandList" role="listbox"></div>
     </div>
   </div>
 

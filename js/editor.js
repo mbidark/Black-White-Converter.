@@ -8,9 +8,8 @@
     activeTab: 'filters',
     pendingFilters: {},
     pendingTransform: { rotate: 0, flipH: false, flipV: false },
-    appliedBlob: null,
-    previewUrl: null,
   };
+  let closeTimer = null;
 
   const el = (id) => document.getElementById(id);
 
@@ -37,8 +36,15 @@
   };
 
   async function open(item) {
+    try {
+      state.originalImg = await U.loadImageFromBlob(item.blob);
+    } catch (err) {
+      window.MbiUI.toast(`Could not open image for editing: ${err.message}`, true);
+      return;
+    }
+    clearTimeout(closeTimer);
+    closeTimer = null;
     state.item = item;
-    state.originalImg = await U.loadImageFromBlob(item.blob);
     state.pendingFilters = {};
     state.pendingTransform = { rotate: 0, flipH: false, flipV: false };
     state.history = [];
@@ -56,9 +62,11 @@
   function close() {
     const editor = el('editor');
     editor.classList.remove('show');
-    setTimeout(() => { editor.hidden = true; document.body.style.overflow = ''; }, 220);
-    if (state.previewUrl) URL.revokeObjectURL(state.previewUrl);
-    state.previewUrl = null;
+    clearTimeout(closeTimer);
+    closeTimer = setTimeout(() => {
+      editor.hidden = true;
+      if (el('lightbox').hidden) document.body.style.overflow = '';
+    }, 220);
   }
 
   function setActiveTab(tab) {
@@ -90,6 +98,7 @@
         state.pendingFilters = { ...PRESETS[name] };
         document.querySelectorAll('.editor-preset').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
+        pushHistory();
         redraw();
       });
       grid.appendChild(btn);
@@ -108,6 +117,7 @@
         label.querySelector('input').addEventListener('change', (e) => {
           if (e.target.checked) state.pendingFilters[def.key] = true;
           else delete state.pendingFilters[def.key];
+          pushHistory();
           redraw();
         });
         ctrl.appendChild(label);
@@ -128,6 +138,7 @@
           state.pendingFilters[def.key] = v;
           redraw();
         });
+        range.addEventListener('change', pushHistory);
         body.appendChild(ctrl);
       }
     });
@@ -140,7 +151,7 @@
     resetBtn.className = 'btn';
     resetBtn.type = 'button';
     resetBtn.innerHTML = '<svg class="icon"><use href="#i-undo"/></svg> Reset all';
-    resetBtn.addEventListener('click', () => { state.pendingFilters = {}; renderPanel(); redraw(); });
+    resetBtn.addEventListener('click', () => { state.pendingFilters = {}; pushHistory(); renderPanel(); redraw(); });
     row.appendChild(resetBtn);
     body.appendChild(row);
 
@@ -167,6 +178,7 @@
         state.pendingFilters[def.key] = v;
         redraw();
       });
+      range.addEventListener('change', pushHistory);
       body.appendChild(ctrl);
     });
   }
@@ -181,6 +193,7 @@
       btn.innerHTML = `<svg class="icon"><use href="#i-rotate"/></svg> ${deg}°`;
       btn.addEventListener('click', () => {
         state.pendingTransform.rotate = (state.pendingTransform.rotate + parseInt(deg, 10)) % 360;
+        pushHistory();
         redraw();
       });
       rotRow.appendChild(btn);
@@ -193,12 +206,12 @@
     flipH.className = 'btn';
     flipH.type = 'button';
     flipH.innerHTML = '<svg class="icon"><use href="#i-image"/></svg> Flip H';
-    flipH.addEventListener('click', () => { state.pendingTransform.flipH = !state.pendingTransform.flipH; redraw(); });
+    flipH.addEventListener('click', () => { state.pendingTransform.flipH = !state.pendingTransform.flipH; pushHistory(); redraw(); });
     const flipV = document.createElement('button');
     flipV.className = 'btn';
     flipV.type = 'button';
     flipV.innerHTML = '<svg class="icon"><use href="#i-image"/></svg> Flip V';
-    flipV.addEventListener('click', () => { state.pendingTransform.flipV = !state.pendingTransform.flipV; redraw(); });
+    flipV.addEventListener('click', () => { state.pendingTransform.flipV = !state.pendingTransform.flipV; pushHistory(); redraw(); });
     flipRow.append(flipH, flipV);
     body.appendChild(flipRow);
 
@@ -208,7 +221,7 @@
     reset.style.width = '100%';
     reset.style.justifyContent = 'center';
     reset.innerHTML = '<svg class="icon"><use href="#i-undo"/></svg> Reset transform';
-    reset.addEventListener('click', () => { state.pendingTransform = { rotate: 0, flipH: false, flipV: false }; redraw(); });
+    reset.addEventListener('click', () => { state.pendingTransform = { rotate: 0, flipH: false, flipV: false }; pushHistory(); redraw(); });
     body.appendChild(reset);
   }
 
@@ -216,6 +229,7 @@
     if (!state.originalImg) return;
     const canvas = el('editorCanvas');
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas is not supported by this browser.');
     const img = state.originalImg;
 
     const filterStr = window.MbiProcessor.buildFilterString(state.pendingFilters);
@@ -240,10 +254,19 @@
 
   function pushHistory() {
     const snapshot = JSON.stringify({ filters: state.pendingFilters, transform: state.pendingTransform });
-    if (state.history[state.historyIndex] === snapshot) return;
+    if (state.history[state.historyIndex] === snapshot) {
+      updateHistoryButtons();
+      return;
+    }
     state.history = state.history.slice(0, state.historyIndex + 1);
     state.history.push(snapshot);
     state.historyIndex++;
+    updateHistoryButtons();
+  }
+
+  function updateHistoryButtons() {
+    el('editorUndo').disabled = state.historyIndex <= 0;
+    el('editorRedo').disabled = state.historyIndex >= state.history.length - 1;
   }
 
   function undo() {
@@ -252,6 +275,7 @@
     const snap = JSON.parse(state.history[state.historyIndex]);
     state.pendingFilters = snap.filters;
     state.pendingTransform = snap.transform;
+    updateHistoryButtons();
     renderPanel();
     redraw();
   }
@@ -262,33 +286,37 @@
     const snap = JSON.parse(state.history[state.historyIndex]);
     state.pendingFilters = snap.filters;
     state.pendingTransform = snap.transform;
+    updateHistoryButtons();
     renderPanel();
     redraw();
   }
 
   async function saveAsNew() {
-    const canvas = el('editorCanvas');
-    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
-    if (!blob) return;
-    const originalName = state.item.filename.replace(/\.png$/i, '');
-    const filename = U.uniqueName(`${originalName}_edited`, window.MbiGallery.getItems().map((i) => i.filename));
-    const thumbRes = await window.MbiProcessor.generateThumbnail(blob, 300);
-    const record = {
-      id: window.MbiApp.getNextId(),
-      originalName: filename,
-      filename,
-      blob,
-      thumbBlob: thumbRes.blob,
-      size: blob.size,
-      width: canvas.width,
-      height: canvas.height,
-      createdAt: Date.now(),
-      favorite: false,
-    };
-    await window.MbiDB.putImage(record);
-    window.MbiGallery.addItem(record);
-    window.MbiUI.toast('Saved edited image.');
-    close();
+    try {
+      const canvas = el('editorCanvas');
+      const blob = await new Promise((res, rej) => canvas.toBlob((result) => result ? res(result) : rej(new Error('PNG export failed.')), 'image/png'));
+      const originalName = state.item.filename.replace(/\.png$/i, '');
+      const filename = U.uniqueName(`${originalName}_edited`, window.MbiGallery.getItems().map((i) => i.filename));
+      const thumbRes = await window.MbiProcessor.generateThumbnail(blob, 300);
+      const record = {
+        id: window.MbiApp.getNextId(),
+        originalName: filename,
+        filename,
+        blob,
+        thumbBlob: thumbRes.blob,
+        size: blob.size,
+        width: canvas.width,
+        height: canvas.height,
+        createdAt: Date.now(),
+      };
+      await window.MbiDB.putImage(record);
+      window.MbiGallery.addItem(record);
+      window.MbiUI.toast('Saved edited image.');
+      close();
+    } catch (err) {
+      console.error('Could not save edited image:', err);
+      window.MbiUI.toast(`Could not save edited image: ${err.message}`, true);
+    }
   }
 
   function bind() {
@@ -300,5 +328,5 @@
     el('editorSave').addEventListener('click', saveAsNew);
   }
 
-  window.MbiEditor = { open, close, bind };
+  window.MbiEditor = { open, close, bind, undo, redo };
 })();

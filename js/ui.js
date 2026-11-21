@@ -1,11 +1,21 @@
 (() => {
   'use strict';
+  let loadingTimer = null;
   const stack = () => document.getElementById('toastStack');
 
   function toast(message, isError = false) {
     const el = document.createElement('div');
     el.className = 'toast' + (isError ? ' error' : '');
-    el.innerHTML = `<svg class="icon"><use href="#${isError ? 'i-alert' : 'i-check'}"/></svg><span>${message}</span>`;
+    el.setAttribute('role', 'status');
+    el.setAttribute('aria-live', isError ? 'assertive' : 'polite');
+    const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    icon.classList.add('icon');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', isError ? '#i-alert' : '#i-check');
+    icon.appendChild(use);
+    const text = document.createElement('span');
+    text.textContent = message;
+    el.append(icon, text);
     stack().appendChild(el);
     requestAnimationFrame(() => el.classList.add('show'));
     setTimeout(() => {
@@ -15,6 +25,7 @@
   }
 
   function showLoading(text = 'Loading…') {
+    clearTimeout(loadingTimer);
     const o = document.getElementById('loadingOverlay');
     document.getElementById('loadingText').textContent = text;
     o.hidden = false;
@@ -23,7 +34,10 @@
   function hideLoading() {
     const o = document.getElementById('loadingOverlay');
     o.classList.remove('show');
-    setTimeout(() => { o.hidden = true; }, 260);
+    clearTimeout(loadingTimer);
+    loadingTimer = setTimeout(() => {
+      if (!o.classList.contains('show')) o.hidden = true;
+    }, 260);
   }
 
   function setPillStatus(type, text) {

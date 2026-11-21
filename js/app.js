@@ -4,7 +4,7 @@
   const state = {
     nextId: 1,
     busy: false,
-    settings: { maxFiles: 20, maxSizeMB: 25, theme: 'auto', layout: 'grid', thumbSize: 300 },
+    settings: { maxFiles: 20, maxSizeMB: 25, theme: 'auto', layout: 'grid', thumbSize: 300, invertOutput: false },
     objectUrls: new Map(),
   };
 
@@ -20,6 +20,7 @@
     el('themeSelect').value = state.settings.theme;
     el('layoutSelect').value = state.settings.layout;
     el('thumbSizeSelect').value = state.settings.thumbSize;
+    updateInvertButton();
     window.MbiTheme.apply(state.settings.theme);
     window.MbiGallery.setLayout(state.settings.layout);
     updateLimitHints();
@@ -32,6 +33,15 @@
   function updateLimitHints() {
     el('dropLimitHint').textContent = `batch of ${state.settings.maxFiles}`;
     el('dropSizeHint').textContent = `${state.settings.maxSizeMB} MB`;
+  }
+
+  function updateInvertButton() {
+    const inverted = !!state.settings.invertOutput;
+    const button = el('invertOutputBtn');
+    button.classList.toggle('primary', inverted);
+    button.setAttribute('aria-pressed', String(inverted));
+    button.title = inverted ? 'Output: black background, white details' : 'Output: white background, black details';
+    el('invertOutputLabel').textContent = `Invert colors: ${inverted ? 'On' : 'Off'}`;
   }
 
   function bindSettings() {
@@ -100,20 +110,22 @@
 
     state.busy = true;
     el('clearBtn').disabled = true;
+    el('clearDbBtn').disabled = true;
     el('zipBtn').disabled = true;
     window.MbiUI.showProgress(true);
     window.MbiUI.setProgress(0);
     window.MbiUI.setPillStatus('busy', 'Processing…');
-    window.MbiUI.showLoading('Inverting images…');
+    window.MbiUI.showLoading('Creating black-and-white images…');
 
     let done = 0, failed = 0;
     const maxBytes = state.settings.maxSizeMB * 1024 * 1024;
+    const invertOutput = !!state.settings.invertOutput;
 
     for (const file of queue) {
       try {
         if (file.size > maxBytes) throw new Error(`Exceeds ${state.settings.maxSizeMB} MB.`);
         window.MbiUI.setStatus(`Processing ${file.name}…`);
-        const result = await window.MbiProcessor.invertImageFile(file, state.settings.maxSizeMB);
+        const result = await window.MbiProcessor.convertToMonochrome(file, state.settings.maxSizeMB, invertOutput);
         const base = U.safeBaseName(file.name);
         const filename = U.uniqueName(base, window.MbiGallery.getItems().map((i) => i.filename));
         const thumbRes = await window.MbiProcessor.generateThumbnail(result.blob, state.settings.thumbSize);
@@ -127,7 +139,6 @@
           width: result.width,
           height: result.height,
           createdAt: Date.now(),
-          favorite: false,
         };
         await window.MbiDB.putImage(record);
         window.MbiGallery.addItem(record);
@@ -144,6 +155,7 @@
     window.MbiUI.showProgress(false);
     window.MbiUI.hideLoading();
     el('clearBtn').disabled = window.MbiGallery.getItems().length === 0;
+    el('clearDbBtn').disabled = window.MbiGallery.getItems().length === 0;
     el('zipBtn').disabled = window.MbiGallery.getItems().length === 0;
     refreshDbStats();
     el('fileInput').value = '';
@@ -161,16 +173,28 @@
   }
 
   async function deleteItem(id) {
-    if (state.busy) return;
+    if (state.busy) {
+      window.MbiUI.toast('Wait until the current operation finishes before deleting images.', true);
+      return false;
+    }
     try {
       await window.MbiDB.deleteImage(id);
       window.MbiGallery.removeItem(id);
       refreshDbStats();
       window.MbiUI.toast('Image deleted.');
-    } catch (err) { window.MbiUI.toast('Delete failed.', true); }
+      return true;
+    } catch (err) {
+      console.error(`Could not delete image ${id}:`, err);
+      window.MbiUI.toast(`Delete failed: ${err.message}`, true);
+      return false;
+    }
   }
 
   async function clearAll() {
+    if (state.busy) {
+      window.MbiUI.toast('Wait until the current operation finishes before clearing images.', true);
+      return;
+    }
     const items = window.MbiGallery.getItems();
     if (items.length === 0) return;
     if (!confirm(`Delete ALL ${items.length} stored image(s)? Cannot be undone.`)) return;
@@ -182,7 +206,10 @@
       window.MbiGallery.setItems([]);
       refreshDbStats();
       window.MbiUI.toast('All images cleared.');
-    } catch (err) { window.MbiUI.toast('Clear failed.', true); }
+    } catch (err) {
+      console.error('Could not clear stored images:', err);
+      window.MbiUI.toast(`Clear failed: ${err.message}`, true);
+    }
     finally { state.busy = false; window.MbiUI.hideLoading(); }
   }
 
@@ -195,27 +222,35 @@
     window.MbiUI.setPillStatus('busy', 'Zipping…');
     try {
       const zip = new JSZip();
-      items.forEach((it) => zip.file(it.filename, it.blob));
+      for (const item of items) {
+        const download = await window.MbiGallery.getDownload(item);
+        zip.file(download.filename, download.blob);
+      }
       const blob = await zip.generateAsync({ type: 'blob' });
-      U.downloadBlob(blob, 'mbi-dark-inverted-images.zip');
+      U.downloadBlob(blob, 'mbi-dark-black-and-white-images.zip');
       window.MbiUI.toast('ZIP download started.');
       window.MbiUI.setPillStatus('ok', 'Ready');
     } catch (err) {
       console.error(err);
-      window.MbiUI.toast('ZIP creation failed.', true);
+      window.MbiUI.toast(`ZIP creation failed: ${err.message}`, true);
       window.MbiUI.setPillStatus('error', 'Failed');
       setTimeout(() => window.MbiUI.setPillStatus('ok', 'Ready'), 3000);
     } finally { state.busy = false; window.MbiUI.hideLoading(); }
   }
 
   async function exportMetadata() {
-    const items = window.MbiGallery.getItems().map((i) => ({
-      id: i.id, filename: i.filename, originalName: i.originalName,
-      width: i.width, height: i.height, size: i.size, createdAt: i.createdAt, favorite: i.favorite,
-    }));
-    const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
-    U.downloadBlob(blob, 'mbi-dark-metadata.json');
-    window.MbiUI.toast('Metadata exported.');
+    try {
+      const items = window.MbiGallery.getItems().map((i) => ({
+        id: i.id, filename: i.filename, originalName: i.originalName,
+        width: i.width, height: i.height, size: i.size, createdAt: i.createdAt,
+      }));
+      const blob = new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' });
+      U.downloadBlob(blob, 'mbi-dark-metadata.json');
+      window.MbiUI.toast('Metadata exported.');
+    } catch (err) {
+      console.error('Metadata export failed:', err);
+      window.MbiUI.toast(`Metadata export failed: ${err.message}`, true);
+    }
   }
 
   function bindUI() {
@@ -235,12 +270,19 @@
     ['dragenter', 'dragover'].forEach((t) => el('dropZone').addEventListener(t, (e) => { e.preventDefault(); e.stopPropagation(); el('dropZone').classList.add('dragover'); }));
     ['dragleave', 'drop'].forEach((t) => el('dropZone').addEventListener(t, (e) => { e.preventDefault(); e.stopPropagation(); el('dropZone').classList.remove('dragover'); }));
     el('dropZone').addEventListener('drop', (e) => handleFiles(e.dataTransfer.files));
+    el('invertOutputBtn').addEventListener('click', () => {
+      state.settings.invertOutput = !state.settings.invertOutput;
+      updateInvertButton();
+      saveSettings();
+    });
 
     // Global drop overlay
     let dragCounter = 0;
+    let globalDropTimer = null;
     const globalDrop = el('globalDrop');
     window.addEventListener('dragenter', (e) => {
-      if (!e.dataTransfer?.types?.includes('Files')) return;
+      if (!Array.from(e.dataTransfer?.types || []).includes('Files')) return;
+      clearTimeout(globalDropTimer);
       dragCounter++;
       globalDrop.hidden = false;
       requestAnimationFrame(() => globalDrop.classList.add('show'));
@@ -249,15 +291,21 @@
       dragCounter = Math.max(0, dragCounter - 1);
       if (dragCounter === 0) {
         globalDrop.classList.remove('show');
-        setTimeout(() => { globalDrop.hidden = true; }, 200);
+        clearTimeout(globalDropTimer);
+        globalDropTimer = setTimeout(() => {
+          if (!globalDrop.classList.contains('show')) globalDrop.hidden = true;
+        }, 200);
       }
     });
     window.addEventListener('dragover', (e) => e.preventDefault());
     window.addEventListener('drop', (e) => {
       e.preventDefault();
       dragCounter = 0;
+      clearTimeout(globalDropTimer);
       globalDrop.classList.remove('show');
-      setTimeout(() => { globalDrop.hidden = true; }, 200);
+      globalDropTimer = setTimeout(() => {
+        if (!globalDrop.classList.contains('show')) globalDrop.hidden = true;
+      }, 200);
       if (e.dataTransfer?.files?.length) handleFiles(e.dataTransfer.files);
     });
 
@@ -279,25 +327,26 @@
     // Gallery toolbar
     el('searchInput').addEventListener('input', U.debounce((e) => window.MbiGallery.setSearch(e.target.value), 150));
     el('sortSelect').addEventListener('change', (e) => window.MbiGallery.setSort(e.target.value));
-    el('favFilterBtn').addEventListener('click', () => {
-      const on = el('favFilterBtn').classList.toggle('active');
-      el('favFilterBtn').style.background = on ? 'var(--text)' : '';
-      el('favFilterBtn').style.color = on ? 'var(--bg)' : '';
-      window.MbiGallery.setOnlyFav(on);
-    });
     el('selectModeBtn').addEventListener('click', () => window.MbiGallery.toggleSelectMode(true));
+    el('homeSelectModeBtn').addEventListener('click', () => window.MbiGallery.toggleSelectMode(true));
     el('bulkCancelBtn').addEventListener('click', () => window.MbiGallery.toggleSelectMode(false));
+    el('homeBulkCancelBtn').addEventListener('click', () => window.MbiGallery.toggleSelectMode(false));
     el('bulkDelBtn').addEventListener('click', () => window.MbiGallery.bulkDelete());
-    el('bulkFavBtn').addEventListener('click', () => window.MbiGallery.bulkFavorite());
+    el('homeBulkDelBtn').addEventListener('click', () => window.MbiGallery.bulkDelete());
     el('bulkZipBtn').addEventListener('click', () => window.MbiGallery.bulkZip());
+    el('homeBulkZipBtn').addEventListener('click', () => window.MbiGallery.bulkZip());
 
     window.MbiRouter.onViewChange((v) => { if (v === 'settings') refreshDbStats(); });
   }
 
   function registerCommands() {
     const cmd = window.MbiCommandPalette;
-    cmd.register({ title: 'Open file picker', icon: 'i-upload', shortcut: 'Ctrl+O', run: () => el('fileInput').click() });
-    cmd.register({ title: 'Download all as ZIP', icon: 'i-download', shortcut: 'Ctrl+S', run: () => downloadZip() });
+    const showShortcuts = () => {
+      window.MbiRouter.switchTo('settings');
+      requestAnimationFrame(() => el('keyboardShortcuts').scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    };
+    cmd.register({ title: 'Open file picker', icon: 'i-upload', shortcut: 'Ctrl/⌘+O', run: () => el('fileInput').click() });
+    cmd.register({ title: 'Download all as ZIP', icon: 'i-download', shortcut: 'Ctrl/⌘+S', run: () => downloadZip() });
     cmd.register({ title: 'Clear all images', icon: 'i-trash', run: () => clearAll() });
     cmd.register({ title: 'Go to Invert', icon: 'i-invert', run: () => window.MbiRouter.switchTo('invert') });
     cmd.register({ title: 'Go to Gallery', icon: 'i-grid', run: () => window.MbiRouter.switchTo('gallery') });
@@ -305,6 +354,7 @@
     cmd.register({ title: 'Toggle theme', icon: 'i-moon', run: () => el('themeToggle').click() });
     cmd.register({ title: 'Export metadata (JSON)', icon: 'i-clipboard', run: () => exportMetadata() });
     cmd.register({ title: 'Toggle select mode', icon: 'i-check', run: () => window.MbiGallery.toggleSelectMode() });
+    cmd.register({ title: 'Show keyboard shortcuts', icon: 'i-command', shortcut: '?', run: showShortcuts });
   }
 
   async function boot() {
@@ -330,7 +380,6 @@
         width: r.width,
         height: r.height,
         createdAt: r.createdAt || Date.now(),
-        favorite: !!r.favorite,
       }));
       state.nextId = items.reduce((m, i) => Math.max(m, i.id), 0) + 1;
       window.MbiGallery.setItems(items);
@@ -365,6 +414,7 @@
     deleteItem,
     getNextId: () => state.nextId++,
     clearAll,
+    isBusy: () => state.busy,
   };
 
   boot();

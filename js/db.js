@@ -1,7 +1,7 @@
 (() => {
   'use strict';
   const DB_NAME = 'mbi-dark-images';
-  const DB_VERSION = 2;
+  const DB_VERSION = 3;
   const STORE = 'images';
   let dbPromise = null;
 
@@ -16,10 +16,9 @@
           const store = db.createObjectStore(STORE, { keyPath: 'id' });
           store.createIndex('filename', 'filename', { unique: false });
           store.createIndex('createdAt', 'createdAt', { unique: false });
-          store.createIndex('favorite', 'favorite', { unique: false });
         } else {
           const store = e.target.transaction.objectStore(STORE);
-          if (!store.indexNames.contains('favorite')) store.createIndex('favorite', 'favorite', { unique: false });
+          if (store.indexNames.contains('favorite')) store.deleteIndex('favorite');
         }
       };
       req.onsuccess = () => resolve(req.result);

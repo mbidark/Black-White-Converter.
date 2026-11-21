@@ -27,7 +27,11 @@
   .editor-panel { width: 100%; max-height: 45vh; border-right: 0; border-top: 1px solid var(--line); }
   .editor-stage { padding: 12px; }
   .editor-tab { flex-direction: row; gap: 6px; }
-  .lightbox-stage { padding: 60px 12px 100px; }
+  .editor-header { gap: 8px; padding: 8px; }
+  .editor-header-left { flex: 1 1 auto; min-width: 0; }
+  .editor-header-right { flex: 0 0 auto; gap: 4px; }
+  .editor-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lightbox-stage { padding: 60px 12px calc(132px + env(safe-area-inset-bottom)); }
   .gallery-toolbar-left { width: 100%; }
   .search-wrap { flex: 1; min-width: 0; }
   .bulk-actions { flex-wrap: wrap; }
@@ -45,9 +49,11 @@
   .select, .input { width: 100%; }
   .editor-presets { grid-template-columns: 1fr; }
   .lightbox-toolbar { padding: 12px; }
-  .lightbox-info #lightboxName { max-width: 60vw; }
-  .lightbox-actions { gap: 4px; }
+  .lightbox-info { flex: 1 1 100%; }
+  .lightbox-info #lightboxName { max-width: 100%; }
+  .lightbox-actions { flex: 1 1 100%; justify-content: center; gap: 4px; flex-wrap: wrap; }
   .lightbox-actions .icon-btn { width: 32px; height: 32px; }
+  .editor-save-label { display: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -65,7 +65,7 @@
 .command-input-wrap .icon { width: 18px; height: 18px; color: var(--muted); }
 .command-input-wrap input { flex: 1; border: 0; background: transparent; font-size: 15px; font-weight: 500; color: var(--text); outline: none; }
 .command-list { max-height: 380px; overflow-y: auto; padding: 6px; }
-.command-item { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text); }
+.command-item { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border: 0; border-radius: var(--radius-sm); background: transparent; font-family: inherit; text-align: left; cursor: pointer; font-size: 13px; color: var(--text); }
 .command-item.active, .command-item:hover { background: var(--accent-soft); }
 .command-item .icon { width: 16px; height: 16px; color: var(--muted); }
 .command-item kbd { margin-left: auto; }

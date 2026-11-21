@@ -35,43 +35,51 @@
     return new Promise((resolve, reject) => {
       const id = nextTaskId++;
       pending.set(id, { resolve, reject });
-      w.postMessage({ id, type, payload });
+      try {
+        w.postMessage({ id, type, payload });
+      } catch (err) {
+        pending.delete(id);
+        reject(err);
+      }
     });
   }
 
-  /* Fallback: main-thread inversion */
-  async function invertMainThread(file, maxSizeMB) {
+  /* Fallback: main-thread monochrome conversion */
+  async function monochromeMainThread(file, maxSizeMB, invert) {
     const img = await U.loadImageFromFile(file);
     const w = img.naturalWidth, h = img.naturalHeight;
     if (!w || !h) throw new Error('Invalid dimensions.');
     const canvas = document.createElement('canvas');
     canvas.width = w; canvas.height = h;
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) throw new Error('Canvas is not supported by this browser.');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, w, h);
     ctx.drawImage(img, 0, 0);
     const pixels = ctx.getImageData(0, 0, w, h);
     const d = pixels.data;
     for (let i = 0; i < d.length; i += 4) {
-      d[i] = 255 - d[i];
-      d[i + 1] = 255 - d[i + 1];
-      d[i + 2] = 255 - d[i + 2];
+      const gray = Math.round(0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2]);
+      const value = invert ? 255 - gray : gray;
+      d[i] = value;
+      d[i + 1] = value;
+      d[i + 2] = value;
     }
     ctx.putImageData(pixels, 0, 0);
     const blob = await new Promise((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(new Error('PNG export failed.')), 'image/png'));
     return { blob, width: w, height: h };
   }
 
-  async function invertImageFile(file, maxSizeMB) {
+  async function convertToMonochrome(file, maxSizeMB, invert = false) {
     if (file.size > maxSizeMB * 1024 * 1024) throw new Error(`Exceeds ${maxSizeMB} MB.`);
-    if (worker !== null || true) {
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await runWorker('invert', { buffer: arrayBuffer, mime: file.type });
-        if (result) return result;
-      } catch (err) {
-        console.warn('Worker invert failed, falling back:', err);
-      }
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const result = await runWorker('monochrome', { buffer: arrayBuffer, mime: file.type, invert });
+      if (result) return result;
+    } catch (err) {
+      console.warn('Worker monochrome conversion failed, falling back:', err);
     }
-    return invertMainThread(file, maxSizeMB);
+    return monochromeMainThread(file, maxSizeMB, invert);
   }
 
   async function applyFiltersToBlob(sourceBlob, filters) {
@@ -90,9 +98,10 @@
     const canvas = document.createElement('canvas');
     canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
     const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas is not supported by this browser.');
     ctx.filter = buildFilterString(filters);
     ctx.drawImage(img, 0, 0);
-    const blob = await new Promise((res) => canvas.toBlob(res, 'image/png'));
+    const blob = await new Promise((res, rej) => canvas.toBlob((result) => result ? res(result) : rej(new Error('PNG export failed.')), 'image/png'));
     return { blob, width: canvas.width, height: canvas.height };
   }
 
@@ -127,8 +136,10 @@
     const hh = Math.round(img.naturalHeight * ratio);
     const canvas = document.createElement('canvas');
     canvas.width = ww; canvas.height = hh;
-    canvas.getContext('2d').drawImage(img, 0, 0, ww, hh);
-    return new Promise((res) => canvas.toBlob((b) => res({ blob: b, width: ww, height: hh }), 'image/png'));
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas is not supported by this browser.');
+    ctx.drawImage(img, 0, 0, ww, hh);
+    return new Promise((res, rej) => canvas.toBlob((b) => b ? res({ blob: b, width: ww, height: hh }) : rej(new Error('Thumbnail export failed.')), 'image/png'));
   }
 
   async function transformBlob(sourceBlob, opts) {
@@ -142,6 +153,7 @@
     rotCanvas.width = Math.round(sw * cos + sh * sin);
     rotCanvas.height = Math.round(sw * sin + sh * cos);
     const rctx = rotCanvas.getContext('2d');
+    if (!rctx) throw new Error('Canvas is not supported by this browser.');
     rctx.translate(rotCanvas.width / 2, rotCanvas.height / 2);
     rctx.rotate(rotateRad);
     const sx = crop ? crop.x : 0;
@@ -152,13 +164,14 @@
     out.width = rotCanvas.width;
     out.height = rotCanvas.height;
     const octx = out.getContext('2d');
+    if (!octx) throw new Error('Canvas is not supported by this browser.');
     octx.translate(flipH ? out.width : 0, flipV ? out.height : 0);
     octx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
     octx.drawImage(rotCanvas, 0, 0);
 
-    const blob = await new Promise((res) => out.toBlob(res, 'image/png'));
+    const blob = await new Promise((res, rej) => out.toBlob((result) => result ? res(result) : rej(new Error('PNG export failed.')), 'image/png'));
     return { blob, width: out.width, height: out.height };
   }
 
-  window.MbiProcessor = { invertImageFile, applyFiltersToBlob, generateThumbnail, transformBlob, buildFilterString };
+  window.MbiProcessor = { convertToMonochrome, applyFiltersToBlob, generateThumbnail, transformBlob, buildFilterString };
 })();
