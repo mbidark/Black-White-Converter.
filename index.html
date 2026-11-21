@@ -87,7 +87,7 @@
 
       <div class="sidebar-footer">
         <span class="local-tag"><span class="dot"></span>IndexedDB</span>
-        <span class="version">v4.0.0</span>
+        <span class="version">v4.3.0</span>
       </div>
     </aside>
 
@@ -103,7 +103,7 @@
           </div>
         </div>
         <div class="topbar-right">
-          <button class="icon-btn" id="commandBtn" aria-label="Command palette (Ctrl+K)" title="Ctrl+K"><svg class="icon"><use href="#i-command"/></svg></button>
+          <button class="icon-btn command-trigger" id="commandBtn" aria-label="Command palette (Ctrl or Command + K)" title="Open command palette (Ctrl/⌘+K)"><svg class="icon"><use href="#i-command"/></svg><span class="command-shortcut-hint" aria-hidden="true"><kbd id="commandModifierHint">Ctrl</kbd><kbd>K</kbd></span></button>
           <div class="status-pill" id="statusPill"><span class="status-dot"></span><span id="statusPillText">Ready</span></div>
           <button class="icon-btn" id="themeToggle" aria-label="Toggle theme" type="button"><svg class="icon" id="themeIcon"><use href="#i-moon"/></svg></button>
         </div>
@@ -127,11 +127,11 @@
         <section class="dropzone" id="dropZone" role="button" tabindex="0" aria-label="Choose or drop image files">
           <div class="dropzone-inner">
             <div class="upload-icon"><svg class="icon"><use href="#i-upload"/></svg></div>
-            <div class="drop-title">Drop images here or <span class="accent-text">browse files</span></div>
-            <div class="drop-hint">PNG, JPG, WEBP, GIF · <strong id="dropLimitHint">No hard limit</strong> · max <span id="dropSizeHint">25 MB</span> each</div>
+            <div class="drop-title">Drop images or PDFs here or <span class="accent-text">browse files</span></div>
+            <div class="drop-hint">PNG, JPG, WEBP, GIF, PDF · <strong id="dropLimitHint">batch of 20 files</strong> · up to <strong id="dropPageLimitHint">100 PDF pages per file</strong> · max <span id="dropSizeHint">25 MB</span> each</div>
           </div>
         </section>
-        <input id="fileInput" type="file" accept="image/*" multiple>
+        <input id="fileInput" type="file" accept="image/*,.pdf,application/pdf" multiple>
 
         <div class="toolbar">
           <div class="toolbar-left">
@@ -229,6 +229,10 @@
               <input id="maxFilesInput" class="input" type="number" min="1" max="200" value="20">
             </div>
             <div class="settings-row">
+              <div><label for="maxPdfPagesInput">PDF page limit</label><p class="settings-desc">1–500 pages per PDF.</p></div>
+              <input id="maxPdfPagesInput" class="input" type="number" min="1" max="500" value="100">
+            </div>
+            <div class="settings-row">
               <div><label for="maxSizeInput">Max file size (MB)</label><p class="settings-desc">1–100 MB.</p></div>
               <input id="maxSizeInput" class="input" type="number" min="1" max="100" value="25">
             </div>
@@ -273,7 +277,7 @@
             <div class="settings-card-head"><svg class="icon"><use href="#i-info"/></svg><h3>About</h3></div>
             <p class="settings-desc" style="margin:0 0 10px">MBI Dark Image Lab — a fully client-side image editor. Nothing leaves your device.</p>
             <p class="settings-desc" style="margin:0 0 10px">Images are stored in IndexedDB and persist across refreshes.</p>
-            <p class="settings-desc" style="margin:0">Version 4.0.0 · Vanilla JS · Web Worker powered</p>
+            <p class="settings-desc" style="margin:0">Version 4.3.0 · Vanilla JS · Web Worker powered · PDF.js 6.5.438</p>
           </div>
         </div>
       </section>
@@ -370,6 +374,7 @@
   <div class="toast-stack" id="toastStack"></div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script type="module" src="js/pdfjs-bootstrap.js"></script>
   <script src="js/utils.js"></script>
   <script src="js/db.js"></script>
   <script src="js/theme.js"></script>
