@@ -87,7 +87,7 @@
 
       <div class="sidebar-footer">
         <span class="local-tag"><span class="dot"></span>IndexedDB</span>
-        <span class="version">v4.3.0</span>
+        <span class="version">v4.4.0</span>
       </div>
     </aside>
 
@@ -266,6 +266,7 @@
               <div class="shortcut-row"><span>Open image picker</span><kbd>Ctrl/⌘ + O</kbd></div>
               <div class="shortcut-row"><span>Download all images as ZIP</span><kbd>Ctrl/⌘ + S</kbd></div>
               <div class="shortcut-row"><span>Open command palette</span><kbd>Ctrl/⌘ + K</kbd></div>
+              <div class="shortcut-row"><span>Toggle custom cursor</span><kbd>Ctrl + Alt + M</kbd></div>
               <div class="shortcut-row"><span>Undo / redo while editing</span><kbd>Ctrl/⌘ + Z / Shift + Z</kbd></div>
               <div class="shortcut-row"><span>Show this shortcut panel</span><kbd>?</kbd></div>
               <div class="shortcut-row"><span>Close dialog or preview</span><kbd>Esc</kbd></div>
@@ -277,7 +278,7 @@
             <div class="settings-card-head"><svg class="icon"><use href="#i-info"/></svg><h3>About</h3></div>
             <p class="settings-desc" style="margin:0 0 10px">MBI Dark Image Lab — a fully client-side image editor. Nothing leaves your device.</p>
             <p class="settings-desc" style="margin:0 0 10px">Images are stored in IndexedDB and persist across refreshes.</p>
-            <p class="settings-desc" style="margin:0">Version 4.3.0 · Vanilla JS · Web Worker powered · PDF.js 6.5.438</p>
+            <p class="settings-desc" style="margin:0">Version 4.4.0 · Vanilla JS · Web Worker powered · PDF.js 6.5.438</p>
           </div>
         </div>
       </section>
@@ -372,6 +373,9 @@
 
   <!-- Toast -->
   <div class="toast-stack" id="toastStack"></div>
+  <div class="custom-cursor" id="customCursor" aria-hidden="true">
+    <img src="assets/custom-cursor.png" alt="">
+  </div>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script type="module" src="js/pdfjs-bootstrap.js"></script>
