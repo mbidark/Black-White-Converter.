@@ -36,6 +36,17 @@ img { max-width: 100%; }
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
+.custom-cursor { position: fixed; top: 0; left: 0; z-index: 9999; width: 40px; height: 40px; opacity: 0; pointer-events: none; transform: translate3d(calc(var(--cursor-x, -100px) - 6px), calc(var(--cursor-y, -100px) - 4px), 0); transition: opacity 140ms ease; will-change: transform, opacity; }
+.custom-cursor.is-visible { opacity: 1; }
+.custom-cursor img { display: block; width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 6px rgba(0, 220, 220, .38)); transition: transform 110ms cubic-bezier(.2, .8, .2, 1); }
+.custom-cursor.is-clicking img { transform: scale(.86); }
+@media (hover: hover) and (pointer: fine) {
+  html.custom-cursor-active, html.custom-cursor-active body, html.custom-cursor-active body * { cursor: none !important; }
+  html.custom-cursor-active input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]),
+  html.custom-cursor-active textarea,
+  html.custom-cursor-active [contenteditable="true"] { cursor: text !important; }
+}
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 99px; border: 2px solid var(--bg); }
