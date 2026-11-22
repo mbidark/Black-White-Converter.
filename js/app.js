@@ -436,7 +436,7 @@
       }).catch(() => {});
     }
 
-    console.log('%c MBI Dark · Image Lab ', 'background:#111;color:#fff;font-weight:bold;padding:3px 8px;border-radius:4px;', 'v4.3.0');
+    console.log('%c MBI Dark · Image Lab ', 'background:#111;color:#fff;font-weight:bold;padding:3px 8px;border-radius:4px;', 'v4.4.0');
   }
 
   // Expose for other modules
